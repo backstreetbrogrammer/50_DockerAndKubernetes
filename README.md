@@ -13,8 +13,8 @@ Tools used:
 
 ## Table of contents
 
-1. Introduction to Docker
-2. Docker Installation
+1. [Introduction to Docker](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-01-introduction-to-docker)
+2. [Docker Installation](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-02-docker-installation)
 3. Docker Compose
 4. Introduction to Kubernetes
 
