@@ -17,6 +17,7 @@ Tools used:
 2. [Docker Installation](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-02-docker-installation)
 3. [Docker Deep Dive](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-03-docker-deep-dive)
     - [Docker CLI](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#docker-cli)
+    - [Building custom images](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#building-custom-images)
 4. Docker Compose
 5. Introduction to Kubernetes
 
@@ -508,5 +509,152 @@ hello Guidemy Students
 ```
 
 One thing important to understand here is that both **images** and **containers** are **_immutable_** - we can override
-the default command for an existing container using the `start` command. 
+the default command for an existing container using the `start` command.
+
+- **Clean docker cache**
+
+The command `docker system prune` is used for cleaning the whole docker cache:
+
+```
+$ docker system prune
+WARNING! This will remove:
+  - all stopped containers
+  - all networks not used by at least one container
+  - all dangling images
+  - unused build cache
+```
+
+Thus, this command comes handy when we want to stop using docker in a server and want to completely remove it to
+reclaim disk space.
+
+- **Get logs from a container**
+
+```
+$ docker logs <container id>
+
+start = get logs
+<container id> = id of the container to start
+```
+
+For example,
+
+```
+$ docker create busybox echo hi students
+f8c2807009c15fa44394a4b2279c25f6ef009075ccae40bcbe35bbb27a525c43
+```
+
+```
+$ docker start f8c2807009c15fa44394a4b2279c25f6ef009075ccae40bcbe35bbb27a525c43
+f8c2807009c15fa44394a4b2279c25f6ef009075ccae40bcbe35bbb27a525c43
+```
+
+```
+$ docker logs f8c2807009c15fa44394a4b2279c25f6ef009075ccae40bcbe35bbb27a525c43
+hi students
+```
+
+- **Stopping containers**
+
+Let's create a long running docker container.
+
+```
+$ docker create busybox ping google.com
+4040a6a244007058ab3a532ed60ab464e818b3b23d2f801258ed0c8d1cb6d5e5
+```
+
+```
+$ docker start 4040a6a244007058ab3a532ed60ab464e818b3b23d2f801258ed0c8d1cb6d5e5
+4040a6a244007058ab3a532ed60ab464e818b3b23d2f801258ed0c8d1cb6d5e5
+```
+
+```
+$ docker logs 4040a6a244007058ab3a532ed60ab464e818b3b23d2f801258ed0c8d1cb6d5e5
+PING google.com (142.250.207.78): 56 data bytes
+64 bytes from 142.250.207.78: seq=0 ttl=57 time=1.499 ms
+64 bytes from 142.250.207.78: seq=1 ttl=57 time=1.753 ms
+64 bytes from 142.250.207.78: seq=2 ttl=57 time=1.123 ms
+...
+...
+```
+
+We can see the output of `docker ps` command that our container is running.
+
+There are two ways to stop the container:
+
+```
+$ docker stop <container id>
+
+stop = uses SIGTERM signal to stop the process, i.e. take time to clean up the resources if any
+```
+
+```
+$ docker kill <container id>
+
+kill = uses SIGKILL signal to stop the process, i.e. kill immediately
+```
+
+- **Executing commands in running containers**
+
+```
+$ docker exec -it <container id> <command>
+
+exec = run other command
+-it = provide input to the container
+<command> = command to execute
+```
+
+The most common usage of this command is to launch a command processor or a shell inside the running container and
+execute various commands.
+
+**Command processors**: bash, powershell, zsh, csh, sh
+
+For example, let's start our `busybox` with ping command again:
+
+```
+$ docker start 4040a6a24400
+```
+
+Let's run a shell inside this container:
+
+```
+$ docker exec -it 4040a6a24400 sh
+/ # ls
+bin    dev    etc    home   lib    lib64  proc   root   sys    tmp    usr    var
+/ # ps -a
+PID   USER     TIME  COMMAND
+    1 root      0:00 ping google.com
+   14 root      0:00 sh
+   21 root      0:00 ps -a
+/ # exit
+```
+
+Command prompt for `sh` shell is `/ #` where we can execute our Linux shell commands inside the `busybox` container.
+
+- **Starting a container with shell**
+
+We can extend the same concept to run a container and override the default command with launching shell.
+
+```
+$ docker run -it busybox sh
+/ # ls
+bin    dev    etc    home   lib    lib64  proc   root   sys    tmp    usr    var
+/ # ps -a
+PID   USER     TIME  COMMAND
+    1 root      0:00 sh
+    8 root      0:00 ps -a
+/ # exit
+```
+
+As soon as we exit, our `sh` is also terminated causing our container also to stop.
+
+Command `docker ps` will not display any running container.
+
+```
+$ docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+
+### Building custom images
+
+
 
