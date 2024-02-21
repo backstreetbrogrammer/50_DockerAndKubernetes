@@ -250,74 +250,6 @@ For more examples and ideas, visit:
 
 ![DockerCLI](DockerCLI.PNG)
 
-Let's create a basic python application which just prints something in the console.
-
-- Create a folder on computer. It must contain the following two files:
-
-A `main.py` file (python file that will contain the code to be executed).
-A `Dockerfile` file (Docker file that will contain the necessary instructions to create the environment).
-
-`main.py` may have the following content:
-
-```
-#!/usr/bin/env python3
-
-print("Hello Guidemy Students!")
-```
-
-- Edit the `Dockerfile` file
-
-Our goal here is to launch Python code.
-
-To do this, our Docker must contain all the dependencies necessary to launch Python. A linux (Ubuntu) with Python
-installed on it should be enough.
-
-The first step to take when we create a Docker file is to access the [DockerHub website](https://hub.docker.com/).
-
-This site contains many pre-designed images to save our time (for example, all images for linux or code languages).
-
-In our case, we will type **"Python"** in the search bar. The first result is the official image created to execute
-Python.
-
-```
-# A dockerfile must always start by importing the base image.
-# We use the keyword 'FROM' to do that.
-# In our example, we want import the python image.
-# So we write 'python' for the image name and 'latest' for the version.
-FROM python:latest
-
-# In order to launch our python code, we must import it into our image.
-# We use the keyword 'COPY' to do that.
-# The first parameter 'main.py' is the name of the file on the host.
-# The second parameter '/' is the path where to put the file on the image.
-# Here we put the file at the image root folder.
-COPY main.py /
-
-# We need to define the command to launch when we are going to run the image.
-# We use the keyword 'CMD' to do that.
-# The following command will execute "python ./main.py".
-CMD [ "python", "./main.py" ]
-```
-
-- Create the Docker image
-
-Once our code is ready and the `Dockerfile` is written, all we have to do is create our docker **image** to contain our
-application.
-
-```
-docker build -t python-test .
-```
-
-The `-t` option allows us to define the name of our docker image.
-
-- Run the Docker image
-
-```
-docker run python-test
-```
-
-Our docker container should be running now and will print the message: `Hello Guidemy Students!`
-
 **_Linux Namespace_**
 
 ![Namespace](Namespace.PNG)
@@ -656,5 +588,130 @@ CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
 
 ### Building custom images
 
+We can create our custom docker images by creating a `Dockerfile`.
+
+Creating a Dockerfile requires three steps:
+
+![CreateDockerfile](CreateDockerfile.PNG)
+
+Let's create a basic **python** application which just prints something on the console.
+
+- Create a folder on computer. It must contain the following two files:
+
+A `main.py` file (python file that will contain the code to be executed).
+A `Dockerfile` file (Docker file that will contain the necessary instructions to create the environment).
+
+`main.py` may have the following content:
+
+```
+#!/usr/bin/env python3
+
+print("Hello Guidemy Students!")
+```
+
+- Edit the `Dockerfile` file
+
+Our goal here is to launch Python code.
+
+To do this, our Docker must contain all the dependencies necessary to launch Python. A linux (Ubuntu) with Python
+installed on it should be enough.
+
+The first step to take when we create a Docker file is to access the [DockerHub website](https://hub.docker.com/).
+
+This site contains many pre-designed images to save our time (for example, all images for linux or code languages).
+
+In our case, we will type **"Python"** in the search bar. The first result is the official image created to execute
+Python.
+
+```
+# A dockerfile must always start by importing the base image.
+# We use the keyword 'FROM' to do that.
+# In our example, we want import the python image.
+# So we write 'python' for the image name and 'latest' for the version.
+FROM python:latest
+
+# In order to launch our python code, we must import it into our image.
+# We use the keyword 'COPY' to do that.
+# The first parameter 'main.py' is the name of the file on the host.
+# The second parameter '/' is the path where to put the file on the image.
+# Here we put the file at the image root folder.
+COPY main.py /
+
+# We need to define the command to launch when we are going to run the image.
+# We use the keyword 'CMD' to do that.
+# The following command will execute "python ./main.py".
+CMD [ "python", "./main.py" ]
+```
+
+- Create the Docker image
+
+Once our code is ready and the `Dockerfile` is written, all we have to do is create our docker **image** to contain our
+application.
+
+```
+docker build -t python-test .
+```
+
+The `-t` option allows us to define the name of our docker image.
+
+- Run the Docker image
+
+```
+docker run python-test
+```
+
+Our docker container should be running now and will print the message: `Hello Guidemy Students!`
+
+---
+
+As our next example, let's create an image that runs **redis-server**.
+
+- Launch Ubuntu app in WSL2
+- Create a new directory: `mkdir redis-image`
+- Move to this directory: `cd redis-image`
+- Create a new Dockerfile (using vi) with the following contents:
+
+```
+# Step 1: Use an existing docker image as a base
+FROM alpine
+
+# Step 2: Download and install dependency
+RUN apk add --update redis
+
+# Step 3: Tell the image what to do when it starts as container
+CMD ["redis-server"]
+```
+
+- Build the image using Docker CLI command: `docker build .`
+- Run the image using Docker CLI command: `docker run <image_id>`
+
+The **Docker server** executes all the Docker CLI commands.
+
+These are all the steps done for creating the redis image and running the redis server container:
+
+![RedisImage](RedisImage.PNG)
+
+- **Tagging an image**
+
+Instead of using `docker build .`, we can tag an image name with a version.
+
+```
+$ docker build -t <user_id>/<image_name>:<version> .
+
+-t = instruction to tag the image with the given name
+<user_id>/<image_name>:<version> = image tag
+```
+
+For example,
+
+```
+$ docker build -t risrivas/redis:latest .
+```
+
+Now, we can run redis server container by just using the tag name:
+
+```
+$ docker run risrivas/redis
+```
 
 
