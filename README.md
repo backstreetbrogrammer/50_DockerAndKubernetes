@@ -18,6 +18,7 @@ Tools used:
 3. [Docker Deep Dive](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-03-docker-deep-dive)
     - [Docker CLI](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#docker-cli)
     - [Building custom images](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#building-custom-images)
+    - [Build a maven-based Java project in Docker](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#build-a-maven--based-java-project-in-docker)
 4. Docker Compose
 5. Introduction to Kubernetes
 
@@ -714,4 +715,361 @@ Now, we can run redis server container by just using the tag name:
 $ docker run risrivas/redis
 ```
 
+### Build a maven-based Java project in Docker
+
+- Launch an Ubuntu app from WSL2
+- Create a new directory: `mkdir haproxy_demo`
+- Move to that directory: `cd haproxy_demo`
+
+A maven-based Java project has following directory structure along with a `pom.xml` file (better to define the class
+in packages!):
+
+![MavenStructure](MavenStructure.PNG)
+
+- Create a new project called **webapp** inside **haproxy_demo**
+
+Source Java files:
+
+`WebServer`
+
+```java
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executors;
+
+public class WebServer {
+
+    private static final String STATUS_ENDPOINT = "/status";
+    private static final String HOME_PAGE_ENDPOINT = "/";
+
+    private static final String HTML_PAGE = "index.html";
+
+    private final int port;
+    private final String serverName;
+
+    public WebServer(final int port, final String serverName) {
+        this.port = port;
+        this.serverName = serverName;
+    }
+
+    public void startServer() {
+        final HttpServer server;
+        try {
+            server = HttpServer.create(new InetSocketAddress(port), 0);
+        } catch (final IOException e) {
+            System.err.println(e.getMessage());
+            return;
+        }
+
+        server.createContext(STATUS_ENDPOINT, this::handleStatusCheckRequest);
+        server.createContext(HOME_PAGE_ENDPOINT, this::handleHomePageRequest);
+
+        server.setExecutor(Executors.newFixedThreadPool(8));
+        System.out.printf("Started server %s on port %d %n", serverName, port);
+        server.start();
+    }
+
+    private void handleHomePageRequest(final HttpExchange exchange) throws IOException {
+        if (!exchange.getRequestMethod().equalsIgnoreCase("get")) {
+            exchange.close();
+            return;
+        }
+
+        System.out.printf("%s received a request%n", this.serverName);
+        exchange.getResponseHeaders().add("Content-Type", "text/html");
+        exchange.getResponseHeaders().add("Cache-Control", "no-cache");
+
+        final byte[] response = loadHtml();
+
+        sendResponse(response, exchange);
+    }
+
+    /**
+     * Loads the HTML page to be fetched to the web browser
+     */
+    private byte[] loadHtml() throws IOException {
+        final InputStream htmlInputStream = getClass().getResourceAsStream(WebServer.HTML_PAGE);
+        if (htmlInputStream == null) {
+            return new byte[]{};
+        }
+
+        final Document document = Jsoup.parse(htmlInputStream, StandardCharsets.UTF_8.name(), "");
+
+        final String modifiedHtml = modifyHtmlDocument(document);
+        return modifiedHtml.getBytes();
+    }
+
+    /**
+     * Fills the server's name and local time in theHTML document
+     *
+     * @param document - original HTML document
+     */
+    private String modifyHtmlDocument(final Document document) {
+        final Element serverNameElement = document.selectFirst("#server_name");
+        serverNameElement.appendText(serverName);
+        return document.toString();
+    }
+
+    private void handleStatusCheckRequest(final HttpExchange exchange) throws IOException {
+        if (!exchange.getRequestMethod().equalsIgnoreCase("get")) {
+            exchange.close();
+            return;
+        }
+
+        System.out.println("Received a health check");
+        final String responseMessage = String.format("Server is alive%n");
+        sendResponse(responseMessage.getBytes(), exchange);
+    }
+
+    private void sendResponse(final byte[] responseBytes, final HttpExchange exchange) throws IOException {
+        exchange.sendResponseHeaders(200, responseBytes.length);
+        final OutputStream outputStream = exchange.getResponseBody();
+        outputStream.write(responseBytes);
+        outputStream.flush();
+        outputStream.close();
+    }
+
+}
+
+```
+
+`Application`
+
+```java
+public class Application {
+
+    public static void main(final String[] args) {
+        if (args.length != 2) {
+            System.out.println("java -jar (jar name) PORT_NUMBER SERVER_NAME");
+        }
+        final int currentServerPort = Integer.parseInt(args[0]);
+        final String serverName = args[1];
+
+        final WebServer webServer = new WebServer(currentServerPort, serverName);
+
+        webServer.startServer();
+    }
+
+}
+
+```
+
+- `index.html` file in resources folder:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Distributed Search</title>
+    <meta http-equiv="cache-control" content="no-cache"/>
+</head>
+<body style="background: #e6f3ff;">
+<h1 style="color:blue; text-align: center; font-style: bold" id="server_name_title">Welcome to </h1>
+<h1 style="color:#00b4ff; text-align: center; font-style: italic" id="server_name"></h1>
+</body>
+</html>
+```
+
+- Create a `pom.xml` file like below:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>distributed.systems</groupId>
+    <artifactId>webapp</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.0</version>
+                <configuration>
+                    <release>11</release>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>Application</mainClass>
+                        </manifest>
+                    </archive>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                </configuration>
+            </plugin>
+
+        </plugins>
+
+    </build>
+
+    <dependencies>
+
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.12.1</version>
+        </dependency>
+
+    </dependencies>
+
+
+</project>
+
+```
+
+- Build the project and package it by running command: `mvn clean package`
+- Let's run this java project by running the following command from the terminal:
+
+```
+~/haproxy_demo/webapp$ sudo /usr/bin/java -jar target/webapp-1.0-SNAPSHOT-jar-with-dependencies.jar 80 Server
+Started server Server on port 80
+```
+
+- Now launch a browser with the link as: `http://localhost:80/`
+- It should display:
+
+![Welcome1](Welcome1.PNG)
+
+**_Migrating the project to Docker_**
+
+- Let's create a `Dockerfile` to create an image of this project
+
+`dockerfile`
+
+```
+# Step 1: Base image which has maven version 3.6.1 and jdk-11 already installed
+FROM maven:3.6.1-jdk-11 AS MAVEN_TOOL_CHAIN_CONTAINER
+
+# Step 2: Copy and create the same maven-based Java project into the container
+RUN mkdir src
+COPY src /tmp/src
+COPY ./pom.xml /tmp/
+WORKDIR /tmp/
+RUN mvn package
+RUN ls -la /tmp
+
+FROM openjdk:11
+COPY --from=MAVEN_TOOL_CHAIN_CONTAINER /tmp/target/webapp-1.0-SNAPSHOT-jar-with-dependencies.jar /tmp/
+WORKDIR /tmp/
+
+# Step 3: Run the application and provide necessary arguments to the main program
+ENTRYPOINT ["java","-jar", "webapp-1.0-SNAPSHOT-jar-with-dependencies.jar"]
+CMD ["80", "Server Name"]
+
+```
+
+Our project structure should look like this:
+
+```
+~/haproxy_demo/webapp$ ls
+dockerfile  pom.xml  src  target
+```
+
+- Build the docker image
+
+```
+$ docker build -f dockerfile -t risrivas/webapp:latest .
+```
+
+- Run the docker container
+
+```
+~/haproxy_demo/webapp$ docker run risrivas/webapp
+Started server Server Name on port 80
+```
+
+- However, when we launch a browser with the link as: `http://localhost:80/`, we cannot see anything loaded
+
+The reason is that server "Server Name" is running on port `80` inside the docker container which is a sandbox or
+isolated environment.
+
+We can do port mapping using `-p` option while we run our docker container.
+
+```
+~/haproxy_demo/webapp$ docker run -p 80:80 risrivas/webapp
+Started server Server Name on port 80
+```
+
+- Now relaunch a browser with the link as: `http://localhost:80/`
+- It should display:
+
+![Welcome2](Welcome2.PNG)
+
+**_Docker RUN vs CMD vs ENTRYPOINT_**
+
+- **RUN** executes command(s) in a new layer and creates a new image; for example, it is often used for installing
+  software packages
+- **CMD** sets default command and/or parameters, which can be overwritten from the command line when docker container
+  runs
+- **ENTRYPOINT** configures a container that will run as an executable
+
+When Docker runs a container, it runs an image inside it.
+
+This image is usually built by executing Docker instructions, which add layers on top of existing image or OS
+distribution.
+
+OS distribution is the initial image and every added layer creates a new image.
+
+Final Docker image reminds an _onion_ with OS distribution inside and a number of layers on top of it.
+
+For example, our image can be built by installing a number of deb packages and our application on top of Ubuntu 14.04
+distribution.
+
+All three instructions (**RUN**, **CMD** and **ENTRYPOINT**) can be specified in `shell` form or `exec` form.
+
+**Shell form**
+
+```
+<instruction> <command>
+```
+
+For example,
+
+```
+RUN apt-get install python3
+CMD echo "Hello world"
+ENTRYPOINT echo "Hello world"
+```
+
+When instruction is executed in `shell` form it calls `/bin/sh -c <command>` under the hood and normal shell processing
+happens.
+
+For example, the following snippet in Dockerfile:
+
+```
+ENV name John Dow
+ENTRYPOINT echo "Hello, $name"
+```
+
+When container runs as `docker run -it <image>` will produce output: `Hello, John Dow`
+
+Note that variable `name` is replaced with its value.
 
