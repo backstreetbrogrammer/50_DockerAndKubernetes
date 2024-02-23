@@ -18,8 +18,9 @@ Tools used:
 3. [Docker Deep Dive](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-03-docker-deep-dive)
     - [Docker CLI](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#docker-cli)
     - [Building custom images](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#building-custom-images)
-    - [Build a maven-based Java project in Docker](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#build-a-maven--based-java-project-in-docker)
-4. Docker Compose
+    - [Build a maven-based Java project in Docker](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#build-a-maven-based-java-project-in-docker)
+    - [Docker RUN vs CMD vs ENTRYPOINT](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#docker-run-vs-cmd-vs-entrypoint)
+4. [Docker Compose](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-04-docker-compose)
 5. Introduction to Kubernetes
 
 ---
@@ -1023,7 +1024,7 @@ Started server Server Name on port 80
 
 ![Welcome2](Welcome2.PNG)
 
-**_Docker RUN vs CMD vs ENTRYPOINT_**
+### Docker RUN vs CMD vs ENTRYPOINT
 
 - **RUN** executes command(s) in a new layer and creates a new image; for example, it is often used for installing
   software packages
@@ -1036,16 +1037,16 @@ When Docker runs a container, it runs an image inside it.
 This image is usually built by executing Docker instructions, which add layers on top of existing image or OS
 distribution.
 
-OS distribution is the initial image and every added layer creates a new image.
+OS distribution is the initial image, and every added layer creates a new image.
 
-Final Docker image reminds an _onion_ with OS distribution inside and a number of layers on top of it.
+The final Docker image reminds an _onion_ with OS distribution inside and a number of layers on top of it.
 
 For example, our image can be built by installing a number of deb packages and our application on top of Ubuntu 14.04
 distribution.
 
 All three instructions (**RUN**, **CMD** and **ENTRYPOINT**) can be specified in `shell` form or `exec` form.
 
-**Shell form**
+**_Shell form_**
 
 ```
 <instruction> <command>
@@ -1065,11 +1066,171 @@ happens.
 For example, the following snippet in Dockerfile:
 
 ```
-ENV name John Dow
+ENV name Caspar Cheung
 ENTRYPOINT echo "Hello, $name"
 ```
 
-When container runs as `docker run -it <image>` will produce output: `Hello, John Dow`
+When container runs as `docker run -it <image>` will produce output: `Hello, Caspar Cheung`.
 
 Note that variable `name` is replaced with its value.
+
+**_Exec form_**
+
+```
+<instruction> ["executable", "param1", "param2", ...]
+```
+
+For example,
+
+```
+RUN ["apt-get", "install", "python3"]
+CMD ["/bin/echo", "Hello world"]
+ENTRYPOINT ["/bin/echo", "Hello world"]
+```
+
+When instruction is executed in `exec form`, it calls executable directly, and shell processing does **NOT** happen.
+
+For example, the following snippet in Dockerfile:
+
+```
+ENV name Caspar Cheung
+ENTRYPOINT ["/bin/echo", "Hello, $name"]
+```
+
+When container runs as `docker run -it <image>` will produce output: `Hello, $name`
+
+Note that variable `name` is **NOT** substituted.
+
+However, this is the preferred form for **CMD** and **ENTRYPOINT** instructions.
+
+If we need to run `bash` (or any other interpreter but `sh`), use `exec form` with `/bin/bash` as executable.
+
+In this case, normal shell processing will take place.
+
+For example, the following snippet in Dockerfile:
+
+```
+ENV name Caspar Cheung
+ENTRYPOINT ["/bin/bash", "-c", "echo Hello, $name"]
+```
+
+When container runs as `docker run -it <image>` will produce output: `Hello, Caspar Cheung`.
+
+**_RUN_**
+
+RUN instruction allows us to install our application and packages required for it.
+
+It executes any commands on top of the current image and creates a new layer by committing the results.
+
+Often we will find **multiple** RUN instructions in a Dockerfile.
+
+RUN has two forms:
+
+- RUN `<command> (shell form)`
+- RUN `["executable", "param1", "param2"] (exec form)`
+
+A good illustration of RUN instruction would be to install multiple version control systems packages:
+
+```
+RUN apt-get update && apt-get install -y \
+  bzr \
+  cvs \
+  git \
+  mercurial \
+  subversion
+```
+
+Note that `apt-get update` and `apt-get install` are executed in a single RUN instruction.
+
+This is done to make sure that the **latest** packages will be installed.
+
+If `apt-get install` were in a separate RUN instruction, then it would reuse a layer added by `apt-get update`, which
+could had been created a long time ago.
+
+**_CMD_**
+
+CMD instruction allows us to set a **default command**, which will be executed only when we run container without
+specifying a command.
+
+If a Docker container runs with a command, the default command will be ignored.
+
+If Dockerfile has more than one CMD instruction, all but **last** CMD instructions are ignored.
+
+CMD has three forms:
+
+- CMD `["executable","param1","param2"]` (exec form, preferred)
+- CMD `["param1","param2"]` (sets additional default parameters for ENTRYPOINT in exec form)
+- CMD `command param1 param2` (shell form)
+
+The second one is used together with ENTRYPOINT instruction in exec form.
+
+It sets default parameters that will be added after ENTRYPOINT parameters if a container runs without command line
+arguments.
+
+For example, the following snippet in Dockerfile:
+
+```
+CMD echo "Hello world" 
+```
+
+When container runs as `docker run -it <image>` will produce output: `Hello world`.
+
+But when container runs with a command, e.g., `docker run -it <image> /bin/bash`, CMD is **ignored** and bash
+interpreter runs instead:
+
+```
+root@7de4bed89922:/#
+```
+
+**_ENTRYPOINT_**
+
+ENTRYPOINT instruction allows us to configure a container that will run as an executable.
+
+It looks similar to CMD, because it also allows us to specify a command with parameters.
+
+The difference is ENTRYPOINT command and parameters are **not ignored** when Docker container runs with command line
+parameters. (There is a way to ignore ENTTRYPOINT, but it is unlikely that we will do it.)
+
+ENTRYPOINT has two forms:
+
+- ENTRYPOINT `["executable", "param1", "param2"]` (exec form, preferred)
+- ENTRYPOINT `command param1 param2` (shell form)
+
+We need to be cautious when choosing ENTRYPOINT form, because forms behavior differs significantly.
+
+**Exec form**
+
+Exec form of ENTRYPOINT allows us to set commands and parameters and then use either form of CMD to set additional
+parameters that are more likely to be changed.
+
+ENTRYPOINT arguments are always used, while CMD ones can be overwritten by command line arguments provided when Docker
+container runs.
+
+For example, the following snippet in Dockerfile:
+
+```
+ENTRYPOINT ["/bin/echo", "Hello"]
+CMD ["world"]
+```
+
+When container runs as `docker run -it <image>` will produce output: `Hello world`.
+
+But when container runs as `docker run -it <image> Caspar` will result in: `Hello Caspar`.
+
+**Shell form**
+
+Shell form of ENTRYPOINT **ignores** any CMD or docker run command line arguments.
+
+**To summarize,**
+
+- Use **RUN** instructions to build our image by adding layers on top of the initial image
+- Prefer ENTRYPOINT to CMD when building executable Docker image, and we need a command **always** to be executed.
+  Additionally, use CMD if we need to provide extra default arguments that could be overwritten from command line when
+  docker container runs.
+- Choose CMD if we need to provide a default command and/or arguments that can be overwritten from the command line when
+  docker container runs.
+
+---
+
+## Chapter 04. Docker Compose
 
