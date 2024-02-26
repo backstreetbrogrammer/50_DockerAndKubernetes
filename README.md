@@ -21,7 +21,7 @@ Tools used:
     - [Build a maven-based Java project in Docker](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#build-a-maven-based-java-project-in-docker)
     - [Docker RUN vs CMD vs ENTRYPOINT](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#docker-run-vs-cmd-vs-entrypoint)
 4. [Docker Compose](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-04-docker-compose)
-5. Introduction to Kubernetes
+5. [Introduction to Kubernetes](https://github.com/backstreetbrogrammer/50_DockerAndKubernetes?tab=readme-ov-file#chapter-05-introduction-to-kubernetes)
 
 ---
 
@@ -1233,4 +1233,271 @@ Shell form of ENTRYPOINT **ignores** any CMD or docker run command line argument
 ---
 
 ## Chapter 04. Docker Compose
+
+Docker Compose is a tool for running multi-container applications on Docker defined using the **Compose file format**.
+
+A Compose file is used to define how one or more containers that make up our application are configured.
+
+Once we have a Compose file, we can create and start our application with simple commands.
+
+We need to remember only two commands:
+
+- Start services: `docker-compose up --build`
+- Stop services: `docker-compose down`
+
+Let's create another Docker project for `HAProxy` along with our `webapp` application we built in our previous section.
+
+- Open the Ubuntu app
+- Create a directory: `mkdir -p haproxy_demo/haproxy`
+- Move to the directory: `cd haproxy_demo/haproxy`
+- Create four files as given:
+
+```
+dockerfile  
+haproxy.cfg  
+haproxy_routing.cfg  
+haproxy_tcp_mode.cfg
+```
+
+`dockerfile`
+
+```
+FROM haproxy:1.7
+COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg
+ENTRYPOINT ["haproxy", "-f", "/usr/local/etc/haproxy/haproxy.cfg"]
+```
+
+`haproxy.cfg`
+
+```
+global
+    maxconn 500
+
+defaults
+    mode http
+    timeout connect 10s
+    timeout client  50s
+    timeout server  50s
+
+frontend http-in
+    bind *:80
+    default_backend application_nodes
+
+backend application_nodes
+    balance roundrobin
+    option httpchk GET /status
+    http-check expect string "Server is alive"
+    server server01 app1:9001 check inter 1s
+    server server02 app2:9002 check inter 2s
+    server server03 app3:9003 check inter 2s
+
+listen stats 
+    bind *:83
+    stats enable
+    stats uri /
+
+```
+
+`haproxy_routing.cfg`
+
+```
+global
+
+defaults
+    mode http
+    timeout connect 5000
+    timeout client  50000
+    timeout server  50000
+
+
+frontend http-in
+    bind *:80
+    acl even_cluster path_end -i /even
+    acl odd_cluster path_end -i /odd
+    
+    use_backend even_servers if even_cluster
+    use_backend odd_servers if odd_cluster
+
+backend even_servers
+    balance roundrobin
+    server server02 app2:9002/time check
+
+backend odd_servers
+    balance roundrobin
+    server server01 app1:9001/time check
+    server server03 app3:9003/time check
+
+```
+
+`haproxy_tcp_mode.cfg`
+
+```
+global
+
+defaults
+    mode tcp
+    timeout connect 5000
+    timeout client  50000
+    timeout server  50000
+
+frontend http-in
+    bind *:80
+    default_backend application_nodes
+
+backend application_nodes
+    balance roundrobin
+    server server01 app1:9001 check
+    server server02 app2:9002 check
+    server server03 app3:9003 check
+
+```
+
+Now we have two projects created inside our `haproxy_demo`:
+
+- Maven-based Java project: `webapp`
+- Load balancer project: `haproxy`
+
+Both are Docker-based projects and together, we want a way to use both the projects for our complete application
+where we have a `webapp` at the backend load-balanced by `haproxy`.
+
+To have a proper communication and coordination between these two Docker projects, we can use **Docker Compose**. This
+is analogous to building **micro-services** application.
+
+- Move to root directory: `cd ~/haproxy_demo`
+- Create our Docker Compose file to combine both `webapp` and `haproxy` as single application:
+
+`docker-compose.yml`
+
+```yaml
+version: '3.4'
+
+services:
+  app1:
+    build: ./webapp
+    container_name: app1
+    command: 9001 "Server 1"
+    ports:
+      - "9001:9001"
+
+  app2:
+    build: ./webapp
+    container_name: app2
+    command: 9002 "Server 2"
+    ports:
+      - "9002:9002"
+
+  app3:
+    build: ./webapp
+    container_name: app3
+    command: 9003 "Server 3"
+    ports:
+      - "9003:9003"
+
+  haproxy:
+    build: ./haproxy
+    container_name: haproxy
+    ports:
+      - "80:80"
+      - "83:83"
+
+```
+
+The `docker-compose.yml` file is self-explanatory:
+
+- We are creating three docker containers for `webapp` running on different ports
+- Load-balancer container `haproxy` is added in last with the appropriate port mappings
+
+Let's run our complete application now: three `webapp` docker containers load-balanced by `haproxy`
+
+```
+$ docker-compose up --build
+```
+
+Now our containers are running with `app1`, `app2`, `app3` (webapps) along with `haproxy` as load balancer.
+
+- Launch a browser: `localhost:83`
+- This will show: `Statistics Report for HAProxy`
+- Now we can launch: `localhost`
+- This will show: `Welcome to Server n`
+- `n` is the server load balanced by `HAProxy` - it can be 1, 2 or 3
+- Refreshing the browser will keep on giving new server in round-robin fashion
+
+We can stop the application by first running `Ctrl-C` and then running the command: `docker-compose down`
+
+---
+
+## Chapter 05. Introduction to Kubernetes
+
+Kubernetes (K8s) is an open-source container orchestration system for automating software deployment, scaling, and
+management.
+
+Kubernetes assembles one or more computers, either virtual machines or bare metal, into a cluster which can run
+workloads in containers.
+
+**_Traditional Deployment_**
+
+![Traditional](Traditional.PNG)
+
+Early on, organizations ran applications on physical servers.
+
+There was no way to define **resource boundaries** for applications in a physical server, and this caused resource
+allocation issues.
+
+For example, if multiple applications run on a physical server, there can be instances where one application would take
+up most of the resources, and as a result, the other applications would under-perform.
+
+A solution for this would be to run each application on a different physical server.
+
+But this did not scale as resources were underutilized, and it was expensive for organizations to maintain many physical
+servers.
+
+**_Virtualized Deployment_**
+
+![Virtualized](Virtualized.PNG)
+
+As a solution, **virtualization** was introduced.
+
+It allows us to run multiple Virtual Machines (VMs) on a single physical server's CPU.
+
+Virtualization allows applications to be isolated between VMs and provides a level of security as another application
+cannot freely access the information of one application.
+
+Virtualization allows better utilization of resources in a physical server and allows better scalability because an
+application can be added or updated easily, reduces hardware costs, and much more.
+
+With virtualization, we can present a set of physical resources as a cluster of disposable virtual machines.
+
+Each VM is a full machine running all the components, including its own operating system, on top of the virtualized
+hardware.
+
+**_Container Deployment_**
+
+![Container](Container.PNG)
+
+Containers are similar to VMs, but they have relaxed isolation properties to share the Operating System (OS) among the
+applications. Therefore, containers are considered lightweight.
+
+Similar to a VM, a container has its own filesystem, share of CPU, memory, process space, and more.
+
+As they are decoupled from the underlying infrastructure, they are portable across clouds and OS distributions.
+
+Containers have become popular because they provide extra benefits, such as:
+
+- **Agile application creation and deployment**: increased ease and efficiency of container image creation compared to
+  VM image use.
+- **Continuous development, integration, and deployment**: provides for reliable and frequent container image build and
+  deployment with quick and efficient rollbacks (due to image immutability).
+- **Dev and Ops separation of concerns**: create application container images at build/release time rather than
+  deployment time, thereby decoupling applications from infrastructure.
+- **Observability**: not only surfaces OS-level information and metrics, but also application health and other signals.
+- **Environmental consistency across development, testing, and production**: runs the same on a laptop as it does in the
+  cloud.
+- **Cloud and OS distribution portability**: runs on Ubuntu, RHEL, CoreOS, on-premises, on major public clouds, and
+  anywhere else.
+- **Application-centric management**: raises the level of abstraction from running an OS on virtual hardware to running
+  an application on an OS using logical resources.
+- **Loosely coupled, distributed, elastic, liberated micro-services**: applications are broken into smaller, independent
+  pieces and can be deployed and managed dynamically – not a monolithic stack running on one big single-purpose machine.
+- **Resource isolation**: predictable application performance.
+- **Resource utilization**: high efficiency and density.
 
