@@ -1501,3 +1501,100 @@ Containers have become popular because they provide extra benefits, such as:
 - **Resource isolation**: predictable application performance.
 - **Resource utilization**: high efficiency and density.
 
+**_Need of Kubernetes_**
+
+Containers are a good way to bundle and run our applications.
+
+In a production environment, we need to manage the containers that run the applications and ensure that there is NO
+**downtime**.
+
+For example, if a container goes down, another container needs to start.
+
+Kubernetes provides us with a framework to run distributed systems **resiliently**.
+
+It takes care of scaling and fail-over for our application, provides deployment patterns, and more.
+
+Kubernetes provides us with:
+
+- **Service discovery and load balancing**: Kubernetes can expose a container using the DNS name or using their own IP
+  address. If traffic to a container is high, Kubernetes is able to load balance and distribute the network traffic so
+  that the deployment is stable.
+- **Storage orchestration**: Kubernetes allows us to automatically mount a storage system of our choice, such as local
+  storages, public cloud providers, and more.
+- **Automated rollouts and rollbacks**: We can describe the desired state for our deployed containers using
+  Kubernetes, and it can change the actual state to the desired state at a controlled rate. For example, we can automate
+  Kubernetes to create new containers for our deployment, remove existing containers and adopt all their resources to
+  the new container.
+- **Automatic bin packing**: We provide Kubernetes with a cluster of nodes that it can use to run containerized tasks.
+  We tell Kubernetes how much CPU and memory (RAM) each container needs. Kubernetes can fit containers onto our nodes to
+  make the best use of our resources.
+- **Self-healing**: Kubernetes restarts containers that fail, replaces containers, kills containers that don't
+  respond to our user-defined health check, and doesn't advertise them to clients until they are ready to serve.
+- **Secret and configuration management**: Kubernetes lets us store and manage sensitive information, such as
+  passwords, OAuth tokens, and SSH keys. We can deploy and update secrets and application configuration without
+  rebuilding our container images, and without exposing secrets in our stack configuration.
+- **Batch execution**: In addition to services, Kubernetes can manage our batch and CI workloads, replacing containers
+  that fail, if desired.
+- **Horizontal scaling**: Scale our application up and down with a simple command, with a UI, or automatically based on
+  CPU usage.
+- **IPv4/IPv6 dual-stack**: Allocation of IPv4 and IPv6 addresses to Pods and Services.
+- **Designed for extensibility**: Add features to our Kubernetes cluster without changing upstream source code.
+
+**_A Use Case_**
+
+Suppose we have an **Elastic Beanstalk** project where we have a set of worker containers doing heavy CPU-intensive
+tasks.
+
+![ElasticBeanstalk](ElasticBeanstalk.PNG)
+
+Now, we want to scale this system.
+
+We can have **more machines** but there will be little control over what each one was doing.
+
+![ScalingEB](ScalingEB.PNG)
+
+Also, we may want to more **workers** only in new machines rather than creating copy of **nginx** and **server** / *
+*client** containers.
+
+That's where we can use **Kubernetes**.
+
+![K8Cluster](K8Cluster.PNG)
+
+This is a `Kubernetes Cluster` where the `Master` controls each `Node` running our Docker containers.
+
+To Summarize,
+
+- **What is Kubernetes?**: System for running many different containers over multiple different machines
+- **Why use Kubernetes?**: When we need to run many different containers with different images
+
+**_Working with Kubernetes_**
+
+Installation and setup of K8s is very different in Development and Production environments.
+
+**Development**
+
+We need to use a program called as `minikube` which quickly sets up a local K8 cluster on macOS, Linux, and Windows.
+
+![LocalK8](LocalK8.PNG)
+
+We can use `kubectl` for managing **containers** in the node and `minikube` for managing the Virtual Machine node
+itself.
+
+**Production**
+
+![ProdK8](ProdK8.PNG)
+
+We need to use managed solutions like **EKS** or **GKE** to set up production-grade K8 cluster.
+
+Doing it ourselves takes a lot of efforts, experience and expertise.
+
+**_Local Kubernetes Development_**
+
+These are the steps we will do for local K8 setup:
+
+- **Install Kubectl**: CLI for interacting with our master
+- **Install a VM driver virtual box**: Used to make a VM that will be our single node
+- **Install minikube**: Runs a single node on that VM
+
+Our goal is to get a simple container running on K8 locally.
+
