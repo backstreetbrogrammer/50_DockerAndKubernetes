@@ -1598,3 +1598,265 @@ These are the steps we will do for local K8 setup:
 
 Our goal is to get a simple container running on K8 locally.
 
+**_Install Minikube_**
+
+- Open Ubuntu app of WSL2
+- Run the following commands:
+
+```
+$ curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+```
+
+```
+$ sudo install minikube-linux-amd64 /usr/local/bin/minikube
+```
+
+- Start Minikube
+
+```
+$ minikube start
+```
+
+This command will run a new Virtual Machine **Node**.
+
+- Check the status of Minikube
+
+```
+$ minikube status
+```
+
+**_Install kubectl_**
+
+- Run the following commands:
+
+```
+$ curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+```
+
+```
+$ sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+```
+
+- Verify installation
+
+```
+$ kubectl version
+```
+
+```
+$ kubectl cluster-info
+```
+
+K8s expect all images to already be built => thus, we need to ensure that our image is hosted on
+[docker hub](https://hub.docker.com/).
+
+There is one config file per **object** we want to create => thus, we need to make one config file to create the
+container.
+
+And, we have to manually set up all the networking => thus, we need to make one config file to set up networking.
+
+**_Adding Configuration_**
+
+A config file is used to create K8s **objects**, for example:
+
+- Pod
+- Service
+- StatefulSet
+- ReplicaController
+
+K8s **objects** serve different purposes, like:
+
+- running a container
+- monitoring a container
+- setting up networking, etc.
+
+Let's add configuration for our simple local app.
+
+- Open the Ubuntu app
+- Create a new directory: `mkdir simplek8s`
+- Change directory: `cd simplek8s`
+- Create one config file for creating K8s **objects**
+
+`client-pod.yaml`
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client-pod
+  labels:
+    component: web
+spec:
+  containers:
+    - name: client
+      image: stephengrider/multi-client
+      ports:
+        - containerPort: 3000
+
+```
+
+- Create one config file to set up network
+
+`client-node-port.yaml`
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: client-node-port
+spec:
+  type: NodePort
+  ports:
+    - port: 3050
+      targetPort: 3000
+      nodePort: 31515
+  selector:
+    component: web
+
+```
+
+In `client-pod.yaml` file, we have defined it as a `Pod`:
+
+```
+kind: Pod
+```
+
+In `client-node-port.yaml` file, we have defined it as a `Service`:
+
+```
+kind: Service
+```
+
+**_Running containers in Pod_**
+
+Pods are the smallest deployable units of computing that we can create and manage in Kubernetes.
+
+A Pod is a group of one or more containers, with shared storage and network resources, and a specification for how to
+run the containers.
+
+A Pod's contents are always co-located and co-scheduled, and run in a shared context.
+
+A Pod models an application-specific **"logical host"**: it contains one or more application containers which are
+relatively **tightly coupled**.
+
+In `client-pod.yaml` file, we have defined only one container to be created and run inside the `Pod`:
+
+```
+  containers:
+    - name: client
+      image: stephengrider/multi-client
+      ports:
+        - containerPort: 3000
+        
+```
+
+**_Service config file details_**
+
+So far, we have learnt **K8s object** types:
+
+- **Pods**: runs one or more tightly coupled containers
+- **Services**: sets up networking in a K8s cluster
+
+Services can be of the following types:
+
+- **ClusterIP**: provides internal connectivity between different components of our application
+- **NodePort**: exposes a container to the outside world (only used in non-prod)
+- **LoadBalancer**: provisions a load balancer in our cloud environment and forwards the traffic to the nodes running
+  the service
+- **Ingress**: manages external access to the services in a cluster, typically HTTP
+
+Our whole simple multi-client app running inside K8s local cluster looks like this:
+
+![K8ClusterApp](K8ClusterApp.PNG)
+
+Going into more details, here is how it gets mapped:
+
+![ClusterAppDetails](ClusterAppDetails.PNG)
+
+In `client-node-port.yaml` file, we have defined our `Service` as a `NodePort`, where selector component is taken as 
+`web`:
+
+```
+spec:
+  type: NodePort
+  ports:
+    - port: 3050
+      targetPort: 3000
+      nodePort: 31515
+  selector:
+    component: web
+
+```
+
+In `client-pod.yaml` file, we have defined our `Pod`'s metadata label component as `web`:
+
+```
+metadata:
+  name: client-pod
+  labels:
+    component: web
+    
+```
+
+This is how Service NodePort is mapped to our container running in Pod.
+
+**_Load and run_**
+
+Command to feed a config file to Kubectl:
+
+```
+$ kubectl apply -f <filename>
+
+kubectl = CLI we use to change our K8s cluster
+apply = change the current configuration of our cluster
+-f = specify the config file name
+<filename> = path to the file with the config
+```
+
+Let's load our two yaml files created above.
+
+- Open the Ubuntu app
+- Change directory: `cd simplek8s`
+- Load the Pod file:
+
+```
+$ kubectl apply -f client-pod.yaml
+pod/client-pod created
+```
+
+- Load the Service file:
+
+```
+$ kubectl apply -f client-node-port.yaml
+service/client-node-port created
+```
+
+- Print the status of all the running **pods**:
+
+```
+$ kubectl get pods
+NAME         READY   STATUS    RESTARTS   AGE
+client-pod   1/1     Running   0          3m5s
+```
+
+- Print the status of all the running **services**:
+
+```
+$ kubectl get services
+NAME               TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+client-node-port   NodePort    10.106.4.105   <none>        3050:31515/TCP   3m59s
+kubernetes         ClusterIP   10.96.0.1      <none>        443/TCP          28h
+```
+
+- Get the IP Address of the Virtual Machine Node running:
+
+```
+$ minikube ip
+192.168.49.2
+```
+
+This IP will be different for different machines.
+
+- Launch and connect to the mini-client app from browser: `http://192.168.49.2:31515/`
+
+We should be able to launch the multi-client app in the browser.
